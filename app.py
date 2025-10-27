@@ -465,29 +465,59 @@ def fetch_results(username, session_cookies):
     cached_data = get_data_from_cache(username, 'results')
     if cached_data: return cached_data
 
-    status, response = fetch_secure_page(session_cookies, 'https://samvidha.iare.ac.in/home?action=g_stud_results')
+    # status, response = fetch_secure_page(session_cookies, 'https://samvidha.iare.ac.in/home?action=g_stud_results')
+    status, response = fetch_secure_page(session_cookies, 'https://samvidha.iare.ac.in/home?action=credit_register')
     if status != "SUCCESS": return {"error": status}
 
     try:
         soup = BeautifulSoup(response.text, 'lxml')
-        results = []
-        cgpa = 'N/A'
+        # results = []
+        # cgpa = 'N/A'
+        semesters_data = []
+        final_cgpa = 'N/A'
 
-        table = soup.find('table', class_='table-bordered')
-        if table:
-            for row in table.find_all('tr')[1:]:
-                cells = [cell.get_text(strip=True) for cell in row.find_all('td')]
-                if len(cells) >= 10:
-                    results.append({
-                        'semester': cells[1],
-                        'sgpa': cells[9]
-                    })
+        # table = soup.find('table', class_='table-bordered')
+        # if table:
+        #     for row in table.find_all('tr')[1:]:
+        #         cells = [cell.get_text(strip=True) for cell in row.find_all('td')]
+        #         if len(cells) >= 10:
+        #             results.append({
+        #                 'semester': cells[1],
+        #                 'sgpa': cells[9]
+        #             })
+        # Find all semester header rows
+        semester_headers = soup.find_all('tr', class_='text-center bg-lightblue disabled')
 
-        cgpa_element = soup.find('h3', class_='text-center')
-        if cgpa_element and 'CGPA' in cgpa_element.text:
-            cgpa = cgpa_element.text.split(':')[-1].strip()
+        # cgpa_element = soup.find('h3', class_='text-center')
+        # if cgpa_element and 'CGPA' in cgpa_element.text:
+        #     cgpa = cgpa_element.text.split(':')[-1].strip()
+        for header in semester_headers:
+            semester_name_raw = header.get_text(strip=True)
+             
+             # Find the SGPA for this semester
+            sgpa_row = header.find_next('tr', class_='bg-danger')
+            if sgpa_row:
+                sgpa_text = sgpa_row.get_text(strip=True)
+                if ':' in sgpa_text:
+                    sgpa_value = sgpa_text.split(':')[-1].strip()
+                    if sgpa_value and sgpa_value != '-':
+                        semesters_data.append({
+                            'semester': semester_name_raw.replace(' SEMESTER', ''),
+                            'sgpa': sgpa_value
+                        })
 
-        results_data = {'semesters': results, 'cgpa': cgpa}
+        # results_data = {'semesters': results, 'cgpa': cgpa}
+        # Find the VERY LAST 'bg-teal' row for the final CGPA
+        all_cgpa_rows = soup.find_all('tr', class_='bg-teal')
+        if all_cgpa_rows:
+            last_cgpa_row = all_cgpa_rows[-1]
+            cgpa_text = last_cgpa_row.get_text(strip=True)
+            if ':' in cgpa_text:
+                cgpa_value = cgpa_text.split(':')[-1].strip()
+                if cgpa_value and cgpa_value != '-':
+                     final_cgpa = cgpa_value
+
+        results_data = {'semesters': semesters_data, 'cgpa': final_cgpa}
         set_data_in_cache(username, 'results', results_data)
         return results_data
     except Exception as e:
